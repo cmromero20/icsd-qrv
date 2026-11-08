@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#074560">
+<title>QRV Call Form</title>
+<style>
+  body{margin:0;background:#F3F7FA;color:#074560;font-family:system-ui,-apple-system,'Segoe UI',Arial,sans-serif}
+  .wrap{max-width:520px;margin:0 auto;padding:56px 20px;text-align:center}
+  .dot{width:44px;height:44px;margin:0 auto 18px;border-radius:22px 22px 22px 4px;background:#F3BB23;animation:p 1s ease-in-out infinite alternate}
+  @keyframes p{from{transform:scale(.85);opacity:.6}to{transform:scale(1);opacity:1}}
+  h1{font-size:22px;margin:0 0 8px}
+  p{color:#4A5A66;line-height:1.5;margin:0 0 12px}
+  a.btn{display:inline-block;margin-top:8px;background:#074560;color:#fff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:14px 14px 14px 4px}
+  button{font:inherit;font-weight:700;color:#1F669A;background:#fff;border:2px solid #DCE5EC;border-radius:14px;padding:12px 20px;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap" id="status">
+  <div class="dot"></div>
+  <h1>Loading the QRV Call Form</h1>
+  <p>One moment…</p>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var API = 'https://script.google.com/macros/s/AKfycbzylN7t5nvodO9jh7aY0NMODmbfdQ_r6CfZ1C6j9wiAoV8Wk-E2dfLg0-1JQbwf5Im8JA/exec';
+
+  /* Stand-in for google.script.run, so the form's own code runs unchanged.
+     It is written into the page before the form's scripts. */
+  var SHIM = '(' + function (API) {
+    function call(fn, args) {
+      return fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'run', fn: fn, args: args }),
+        credentials: 'omit',
+        redirect: 'follow'
+      }).then(function (r) {
+        if (!r.ok) throw new Error('The form server did not answer. Try again.');
+        return r.json();
+      }).then(function (j) {
+        if (!j || !j.ok) throw new Error((j && j.error) || 'Something went wrong. Try again.');
+        return j.data;
+      }, function (e) {
+        if (e instanceof TypeError) throw new Error('No connection. Check your signal and try again.');
+        throw e;
+      });
+    }
+    function runner(h) {
+      return new Proxy({}, {
+        get: function (_, name) {
+          if (name === 'withSuccessHandler') return function (f) { return runner({ ok: f, fail: h.fail, user: h.user }); };
+          if (name === 'withFailureHandler') return function (f) { return runner({ ok: h.ok, fail: f, user: h.user }); };
+          if (name === 'withUserObject') return function (u) { return runner({ ok: h.ok, fail: h.fail, user: u }); };
+          return function () {
+            var args = Array.prototype.slice.call(arguments);
+            call(String(name), args).then(
+              function (res) { if (h.ok) h.ok(res, h.user); },
+              function (err) { if (h.fail) h.fail(err, h.user); else console.error(err); }
+            );
+          };
+        }
+      });
+    }
+    window.google = window.google || {};
+    window.google.script = { run: runner({}), host: { close: function () {} } };
+  }.toString() + ')(' + JSON.stringify(API) + ');';
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  function fail(msg) {
+    document.getElementById('status').innerHTML =
+      '<h1>The form didn’t load</h1><p>' + esc(msg) + '</p>' +
+      '<button type="button" onclick="location.reload()">Try again</button><br>' +
+      '<a class="btn" href="' + API + location.search + '">Open the backup link</a>';
+  }
+
+  var q = new URLSearchParams(location.search);
+  var params = {};
+  ['close', 't', 'practice'].forEach(function (k) { if (q.get(k)) params[k] = q.get(k); });
+
+  fetch(API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action: 'page', params: params }),
+    credentials: 'omit',
+    redirect: 'follow'
+  }).then(function (r) {
+    if (!r.ok) throw new Error('The form server did not answer (' + r.status + ').');
+    return r.json();
+  }).then(function (j) {
+    if (!j || !j.ok || !j.data || !j.data.html) throw new Error((j && j.error) || 'The form server sent an empty page.');
+    var head =
+      '<meta charset="utf-8">' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+      '<meta name="robots" content="noindex, nofollow">' +
+      '<meta name="theme-color" content="#074560">' +
+      '<title>' + esc(j.data.title || 'QRV Call Form') + '</title>' +
+      '<script>' + SHIM + '<\/script>';
+    var html = j.data.html;
+    if (/<head[^>]*>/i.test(html)) html = html.replace(/<head[^>]*>/i, function (m) { return m + head; });
+    else html = '<!doctype html><html><head>' + head + '</head><body>' + html + '</body></html>';
+    if (!/^\s*<!doctype/i.test(html)) html = '<!doctype html>' + html;
+    document.open();
+    document.write(html);
+    document.close();
+  }).catch(function (e) {
+    fail(e instanceof TypeError ? 'No connection to the form server. Check your signal and try again.' : e.message);
+  });
+})();
+</script>
+</body>
+</html>
